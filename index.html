@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Virtual Chromatograph: Forensic Lab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 1rem;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+        }
+
+        .paper-strip {
+            width: 120px;
+            height: 400px;
+            background-color: #ffffff;
+            border: 2px solid #d1d5db;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
+        }
+
+        .solvent-liquid {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            transition: height 0.5s ease;
+            opacity: 0.4;
+        }
+
+        .ink-dot {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            transform: translateX(-50%);
+            left: 50%;
+            transition: bottom 0.1s linear;
+        }
+
+        .ruler {
+            position: absolute;
+            left: 10px;
+            top: 20px;
+            width: 30px;
+            height: 360px;
+            border-right: 2px solid #4b5563;
+            display: flex;
+            flex-direction: column-reverse;
+            justify-content: flex-start;
+            font-size: 10px;
+            color: #4b5563;
+            pointer-events: none;
+        }
+
+        .ruler-mark {
+            height: 36px; /* 10% height per cm */
+            border-bottom: 1px solid #9ca3af;
+            display: flex;
+            align-items: flex-end;
+            padding-left: 2px;
+        }
+
+        @keyframes drift {
+            0% { transform: translateX(-1px) scale(1); }
+            50% { transform: translateX(1px) scale(1.05); }
+            100% { transform: translateX(-1px) scale(1); }
+        }
+
+        .pigment {
+            filter: blur(4px);
+            animation: drift 3s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-slate-800">🔬 The Virtual Chromatograph</h1>
+            <p class="text-slate-600">IP Science: Forensic Inquiry Module</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- Controls Column -->
+            <div class="glass-panel p-6 space-y-6">
+                <h2 class="text-xl font-semibold border-b pb-2">Lab Controls</h2>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Select Solvent (Mobile Phase)</label>
+                    <select id="solventSelect" class="w-full p-2 border rounded bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                        <option value="water">Distilled Water (Polar)</option>
+                        <option value="ethanol">Ethanol (Moderately Polar)</option>
+                        <option value="propanone">Propanone/Acetone (Non-Polar)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Select Evidence Pen</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="selectPen('A')" id="btnPenA" class="pen-btn p-2 border rounded hover:bg-blue-50 bg-blue-100 border-blue-500 font-bold">A</button>
+                        <button onclick="selectPen('B')" id="btnPenB" class="pen-btn p-2 border rounded hover:bg-blue-50 bg-white font-bold">B</button>
+                        <button onclick="selectPen('C')" id="btnPenC" class="pen-btn p-2 border rounded hover:bg-blue-50 bg-white font-bold">C</button>
+                    </div>
+                </div>
+
+                <div class="pt-4 space-y-3">
+                    <button id="startBtn" onclick="runSimulation()" class="w-full py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition">START RUN</button>
+                    <button onclick="resetSim()" class="w-full py-3 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300 transition">RESET LAB</button>
+                </div>
+
+                <div class="bg-blue-50 p-4 rounded-lg mt-4 border border-blue-100">
+                    <h3 class="text-sm font-bold text-blue-800 uppercase mb-1">Inquiry Task</h3>
+                    <p class="text-xs text-blue-700">Identify which solvent creates the best separation for Pen B. Record the $R_f$ values for each pigment.</p>
+                </div>
+            </div>
+
+            <!-- Experiment Column -->
+            <div class="lg:col-span-1 flex flex-col items-center justify-center space-y-4">
+                <div class="relative">
+                    <!-- The Beaker -->
+                    <div class="w-48 h-96 border-4 border-t-0 border-slate-300 rounded-b-3xl relative bg-white bg-opacity-20 flex justify-center items-end pb-4">
+                        <!-- Solvent in Beaker -->
+                        <div id="beakerSolvent" class="absolute bottom-0 w-full bg-blue-200 h-12 transition-all duration-500"></div>
+                        
+                        <!-- The Paper -->
+                        <div class="paper-strip z-10">
+                            <!-- Ruler inside paper -->
+                            <div class="ruler">
+                                <div class="ruler-mark">1</div>
+                                <div class="ruler-mark">2</div>
+                                <div class="ruler-mark">3</div>
+                                <div class="ruler-mark">4</div>
+                                <div class="ruler-mark">5</div>
+                                <div class="ruler-mark">6</div>
+                                <div class="ruler-mark">7</div>
+                                <div class="ruler-mark">8</div>
+                                <div class="ruler-mark">9</div>
+                                <div class="ruler-mark">10</div>
+                            </div>
+                            
+                            <!-- Pencil Line -->
+                            <div class="absolute bottom-[40px] w-full border-t border-dashed border-gray-400"></div>
+                            
+                            <!-- Solvent Front -->
+                            <div id="solventFront" class="absolute bottom-[40px] w-full border-t-2 border-blue-400 z-20" style="display:none">
+                                <span class="absolute right-0 -top-5 text-[10px] text-blue-600 font-bold bg-white px-1">Solvent Front</span>
+                            </div>
+
+                            <!-- Pigments (Generated by JS) -->
+                            <div id="pigmentContainer">
+                                <div id="initialDot" class="ink-dot bg-black bottom-[35px]"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-center font-mono text-sm bg-white px-4 py-2 rounded shadow border">
+                    Time: <span id="timerDisplay">0.0</span>s | Status: <span id="statusDisplay" class="font-bold text-blue-600">Ready</span>
+                </div>
+            </div>
+
+            <!-- Results Column -->
+            <div class="glass-panel p-6">
+                <h2 class="text-xl font-semibold border-b pb-2">Analysis Tools</h2>
+                
+                <div class="mt-4 space-y-4">
+                    <div id="dataList" class="space-y-2">
+                        <p class="text-sm italic text-gray-500">Run a simulation to see data...</p>
+                    </div>
+
+                    <div class="mt-6 p-4 bg-slate-800 text-white rounded-lg">
+                        <h3 class="text-sm font-bold text-yellow-400 mb-2 underline">Molecular View Toggle</h3>
+                        <p class="text-[11px] leading-relaxed opacity-80">
+                            Current Solvent: <span id="molSolvent" class="text-yellow-200">None</span><br>
+                            Interaction: <span id="molLogic" class="text-yellow-200">Waiting for start...</span>
+                        </p>
+                    </div>
+
+                    <div class="p-4 border-2 border-dashed border-gray-300 rounded-lg">
+                        <h3 class="text-sm font-bold mb-2">Calculator ($R_f$)</h3>
+                        <div class="space-y-2">
+                            <input type="number" id="calcSolute" placeholder="Dist to Spot (cm)" class="w-full p-2 text-sm border rounded">
+                            <input type="number" id="calcSolvent" placeholder="Dist to Front (cm)" class="w-full p-2 text-sm border rounded">
+                            <button onclick="calculateRf()" class="w-full bg-slate-600 text-white py-1 rounded text-sm">Calculate</button>
+                            <div id="calcResult" class="text-center font-bold text-lg text-blue-600 mt-2"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error/Alert Modal (Custom) -->
+    <div id="customModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full text-center">
+            <p id="modalMsg" class="text-gray-800 mb-4"></p>
+            <button onclick="closeModal()" class="px-6 py-2 bg-blue-600 text-white rounded-lg">OK</button>
+        </div>
+    </div>
+
+    <script>
+        // Simulation Data
+        const pens = {
+            'A': [
+                { color: '#3b82f6', rf: { water: 0.8, ethanol: 0.4, propanone: 0.1 }, label: 'Blue A' },
+                { color: '#ef4444', rf: { water: 0.3, ethanol: 0.7, propanone: 0.2 }, label: 'Red A' }
+            ],
+            'B': [
+                { color: '#eab308', rf: { water: 0.9, ethanol: 0.2, propanone: 0.5 }, label: 'Yellow B' },
+                { color: '#8b5cf6', rf: { water: 0.4, ethanol: 0.8, propanone: 0.3 }, label: 'Purple B' },
+                { color: '#10b981', rf: { water: 0.1, ethanol: 0.5, propanone: 0.9 }, label: 'Green B' }
+            ],
+            'C': [
+                { color: '#f97316', rf: { water: 0.5, ethanol: 0.5, propanone: 0.5 }, label: 'Orange C' },
+                { color: '#1f2937', rf: { water: 0.2, ethanol: 0.1, propanone: 0.1 }, label: 'Black C' }
+            ]
+        };
+
+        const solvents = {
+            'water': { color: '#bfdbfe', speed: 1.5, logic: 'High polarity. Good at dissolving ionic/polar dyes.' },
+            'ethanol': { color: '#fbcfe8', speed: 1.2, logic: 'Intermediate polarity. Breaks down medium-sized organic molecules.' },
+            'propanone': { color: '#bbf7d0', speed: 2.0, logic: 'Low polarity. Excellent at dragging non-polar synthetic pigments.' }
+        };
+
+        let selectedPen = 'A';
+        let isRunning = false;
+        let animationId = null;
+
+        function selectPen(p) {
+            if(isRunning) return;
+            selectedPen = p;
+            document.querySelectorAll('.pen-btn').forEach(btn => {
+                btn.classList.remove('bg-blue-100', 'border-blue-500');
+                btn.classList.add('bg-white');
+            });
+            document.getElementById(`btnPen${p}`).classList.add('bg-blue-100', 'border-blue-500');
+            document.getElementById(`btnPen${p}`).classList.remove('bg-white');
+        }
+
+        function runSimulation() {
+            if(isRunning) return;
+            
+            const solventKey = document.getElementById('solventSelect').value;
+            const solvent = solvents[solventKey];
+            const pigments = pens[selectedPen];
+            
+            isRunning = true;
+            document.getElementById('statusDisplay').innerText = "Running...";
+            document.getElementById('statusDisplay').className = "font-bold text-green-600";
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('startBtn').classList.add('opacity-50');
+
+            // UI Reset
+            document.getElementById('pigmentContainer').innerHTML = '';
+            document.getElementById('solventFront').style.display = 'block';
+            document.getElementById('beakerSolvent').style.backgroundColor = solvent.color;
+            document.getElementById('molSolvent').innerText = solventKey.toUpperCase();
+            document.getElementById('molLogic').innerText = solvent.logic;
+
+            let startTime = null;
+            const duration = 5000 / solvent.speed; // Adjust time based on solvent viscosity
+            const baseline = 40; // px from bottom
+            const maxTravel = 320; // px total travel for solvent
+
+            function step(timestamp) {
+                if (!startTime) startTime = timestamp;
+                const progress = (timestamp - startTime) / duration;
+                
+                if (progress < 1) {
+                    const currentSolventPos = baseline + (maxTravel * progress);
+                    document.getElementById('solventFront').style.bottom = `${currentSolventPos}px`;
+                    document.getElementById('timerDisplay').innerText = (progress * 5).toFixed(1);
+
+                    // Clear and render pigments
+                    let html = '';
+                    pigments.forEach(p => {
+                        const rfValue = p.rf[solventKey];
+                        const currentPigmentPos = baseline + (maxTravel * progress * rfValue);
+                        html += `<div class="ink-dot pigment" style="bottom:${currentPigmentPos}px; background-color:${p.color}; width:14px; height:14px;"></div>`;
+                    });
+                    document.getElementById('pigmentContainer').innerHTML = html;
+
+                    animationId = requestAnimationFrame(step);
+                } else {
+                    completeSim(solventKey, maxTravel);
+                }
+            }
+            animationId = requestAnimationFrame(step);
+        }
+
+        function completeSim(solventKey, maxTravel) {
+            isRunning = false;
+            document.getElementById('statusDisplay').innerText = "Complete";
+            document.getElementById('statusDisplay').className = "font-bold text-red-600";
+            
+            const pigments = pens[selectedPen];
+            let dataHtml = `<h3 class="font-bold text-sm">Results: Pen ${selectedPen} in ${solventKey}</h3>`;
+            
+            pigments.forEach(p => {
+                const rf = p.rf[solventKey];
+                const dist = (maxTravel / 36 * rf).toFixed(1); // Rough cm conversion
+                dataHtml += `
+                    <div class="flex justify-between items-center text-xs p-2 bg-white border rounded">
+                        <span><b style="color:${p.color}">■</b> ${p.label}</span>
+                        <span class="font-mono bg-gray-100 px-1 italic">Dist: ~${dist}cm</span>
+                    </div>
+                `;
+            });
+            document.getElementById('dataList').innerHTML = dataHtml;
+        }
+
+        function resetSim() {
+            cancelAnimationFrame(animationId);
+            isRunning = false;
+            document.getElementById('pigmentContainer').innerHTML = '<div id="initialDot" class="ink-dot bg-black bottom-[35px]"></div>';
+            document.getElementById('solventFront').style.bottom = '40px';
+            document.getElementById('solventFront').style.display = 'none';
+            document.getElementById('timerDisplay').innerText = '0.0';
+            document.getElementById('statusDisplay').innerText = "Ready";
+            document.getElementById('statusDisplay').className = "font-bold text-blue-600";
+            document.getElementById('dataList').innerHTML = '<p class="text-sm italic text-gray-500">Run a simulation to see data...</p>';
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('startBtn').classList.remove('opacity-50');
+            document.getElementById('calcResult').innerText = '';
+        }
+
+        function calculateRf() {
+            const solute = parseFloat(document.getElementById('calcSolute').value);
+            const solvent = parseFloat(document.getElementById('calcSolvent').value);
+            
+            if (isNaN(solute) || isNaN(solvent) || solvent <= 0) {
+                showModal("Please enter valid positive numbers. Solvent distance must be greater than 0.");
+                return;
+            }
+            if (solute > solvent) {
+                showModal("Error: Solute cannot travel further than the solvent front!");
+                return;
+            }
+
+            const res = (solute / solvent).toFixed(2);
+            document.getElementById('calcResult').innerHTML = `<span class="text-gray-500 text-xs font-normal block">Calculated $R_f$:</span> ${res}`;
+        }
+
+        function showModal(msg) {
+            document.getElementById('modalMsg').innerText = msg;
+            document.getElementById('customModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('customModal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
